@@ -220,6 +220,10 @@ class InterfacesUpdater(MIBUpdater):
         self.mgmt_oid_name_map, \
         self.mgmt_alias_map = mibs.init_mgmt_interface_tables(self.db_conn[0])
 
+        self.lag_name_if_name_map, \
+        self.if_name_lag_name_map, \
+        self.oid_lag_name_map, _ = Namespace.get_sync_d_from_all_namespace(mibs.init_sync_d_lag_tables, self.db_conn)
+
     def update_data(self):
         """
         Update redis (caches config)
@@ -233,10 +237,6 @@ class InterfacesUpdater(MIBUpdater):
             if counter_table is None:
                 counter_table = {}
             self.if_counters[if_idx] = counter_table
-
-        self.lag_name_if_name_map, \
-        self.if_name_lag_name_map, \
-        self.oid_lag_name_map, _ = Namespace.get_sync_d_from_all_namespace(mibs.init_sync_d_lag_tables, self.db_conn)
 
         self.if_range = sorted(list(self.oid_name_map.keys()) +
                                list(self.oid_lag_name_map.keys()) +
