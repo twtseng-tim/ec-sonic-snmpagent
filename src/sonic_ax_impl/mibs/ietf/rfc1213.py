@@ -1,5 +1,6 @@
 import ipaddress
 import python_arptable
+import re
 import socket
 from enum import unique, Enum
 from bisect import bisect_right
@@ -179,15 +180,64 @@ class NextHopUpdater(MIBUpdater):
 
         return self.route_list[right]
 
+
+class IfIndexUpdater(MIBUpdater):
+    def __init__(self):
+        super().__init__()
+        self.db_conn = Namespace.init_namespace_dbs()
+        self.if_index_map = {}
+        self.if_index_list = []
+
+    def _update_if_index_info(self, dev, ip):
+        if ip is None: return
+
+        if_index = mibs.get_index_from_str(dev)
+        if if_index is None: return
+
+        iptuple = ip2byte_tuple(ip)
+        subid = (4,) + iptuple
+        self.if_index_map[subid] = if_index
+        self.if_index_list.append(subid)
+
+    def update_data(self):
+        self.if_index_map = {}
+        self.if_index_list = []
+        interfaces = Namespace.dbs_keys(self.db_conn, mibs.APPL_DB, "INTF_TABLE:*")
+        for interface in interfaces:
+            ethTablePrefix = re.search(r"INTF_TABLE\:Ethernet[0-9]+\:[0-9.]+", interface)
+            if ethTablePrefix is None:
+                continue
+            else:
+                dev = ethTablePrefix.group().split(':')[1]
+                ip = ethTablePrefix.group().split(':')[2]
+            self._update_if_index_info(dev, ip)
+
+        self.if_index_list.sort()
+
+    def get_if_index(self, sub_id):
+        return self.if_index_map.get(sub_id, None)
+
+    def get_next(self, sub_id):
+        right = bisect_right(self.if_index_list, sub_id)
+        if right >= len(self.if_index_list):
+            return None
+
+        return self.if_index_list[right]
+
+
 class IpMib(metaclass=MIBMeta, prefix='.1.3.6.1.2.1.4'):
     arp_updater = ArpUpdater()
     nexthop_updater = NextHopUpdater()
+    ifindex_updater = IfIndexUpdater()
 
     ipRouteNextHop = \
         SubtreeMIBEntry('21.1.7', nexthop_updater, ValueType.IP_ADDRESS, nexthop_updater.nexthop)
 
     ipNetToMediaPhysAddress = \
         SubtreeMIBEntry('22.1.2', arp_updater, ValueType.OCTET_STRING, arp_updater.arp_dest)
+
+    ipNetToIfIndex = \
+        SubtreeMIBEntry('34.1.3.1', ifindex_updater, ValueType.INTEGER, ifindex_updater.get_if_index)
 
 class InterfacesUpdater(MIBUpdater):
 
@@ -316,7 +366,7 @@ class InterfacesUpdater(MIBUpdater):
         :return: the 0-based interface ID.
         """
         if sub_id:
-            return self.get_oid(sub_id) - 1
+            return self.get_oid(sub_id)
 
     def interface_description(self, sub_id):
         """
@@ -334,7 +384,7 @@ class InterfacesUpdater(MIBUpdater):
         elif oid in self.vlan_oid_name_map:
             return self.vlan_oid_name_map[oid]
 
-        return self.if_alias_map[self.oid_name_map[oid]]
+        return self.oid_name_map[oid]
 
     def _get_counter(self, oid, table_name):
         """
@@ -343,7 +393,7 @@ class InterfacesUpdater(MIBUpdater):
         :return: the counter for the respective sub_id/table.
         """
         # Enum.name or table_name = 'name_of_the_table'
-        # Example: 
+        # Example:
         # table_name = <DbTables.SAI_PORT_STAT_IF_OUT_ERRORS: 20>
         # _table_name = 'SAI_PORT_STAT_IF_OUT_ERRORS'
         _table_name = getattr(table_name, 'name', table_name)
@@ -401,7 +451,7 @@ class InterfacesUpdater(MIBUpdater):
         elif oid in self.oid_lag_name_map:
             counter_value = 0
             # Sum the values of this counter for all ports in the LAG.
-            # Example: 
+            # Example:
             # table_name = <DbTables.SAI_PORT_STAT_IF_OUT_ERRORS: 20>
             # oid = 1001
             # self.oid_lag_name_map = {1001: 'PortChannel01', 1002: 'PortChannel02', 1003: 'PortChannel03'}
@@ -423,14 +473,14 @@ class InterfacesUpdater(MIBUpdater):
             sai_lag_rif_id = self.port_rif_map[sai_lag_id] if sai_lag_id in self.port_rif_map else None
             if sai_lag_rif_id in self.rif_port_map:
                 # Extract the 'name' part of 'table_name'.
-                # Example: 
+                # Example:
                 # table_name = <DbTables.SAI_PORT_STAT_IF_OUT_ERRORS: 20>
                 # _table_name = 'SAI_PORT_STAT_IF_OUT_ERRORS'
                 table_name = getattr(table_name, 'name', table_name)
                 # Find rif counter table if applicable and add the count for this table.
                 # Example:
                 # mibs.RIF_DROPS_AGGR_MAP = {'SAI_PORT_STAT_IF_IN_ERRORS': 'SAI_ROUTER_INTERFACE_STAT_IN_ERROR_PACKETS', 'SAI_PORT_STAT_IF_OUT_ERRORS': 'SAI_ROUTER_INTERFACE_STAT_OUT_ERROR_PACKETS'}
-                # self.rif_counters['6000000000006'] = {'SAI_ROUTER_INTERFACE_STAT_IN_PACKETS': 6, ... 'SAI_ROUTER_INTERFACE_STAT_OUT_ERROR_PACKETS': 6, ...} 
+                # self.rif_counters['6000000000006'] = {'SAI_ROUTER_INTERFACE_STAT_IN_PACKETS': 6, ... 'SAI_ROUTER_INTERFACE_STAT_OUT_ERROR_PACKETS': 6, ...}
                 if table_name in mibs.RIF_DROPS_AGGR_MAP:
                     rif_table_name = mibs.RIF_DROPS_AGGR_MAP[table_name]
                     counter_value += self.rif_counters[sai_lag_rif_id].get(rif_table_name, 0)
