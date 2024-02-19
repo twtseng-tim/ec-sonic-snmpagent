@@ -122,9 +122,7 @@ class TestLLDPMIB(TestCase):
         self.assertEqual(value0.type_, ValueType.END_OF_MIB_VIEW)
         self.assertEqual(value0.data, None)
 
-
     def test_subtype_lldp_rem_man_addr_table(self):
-
         # Get the first entry of walk. We will get IPv4 Address associated with Ethernet0 Port
         # Verfiy both valid ipv4 and ipv6 address exist
         for entry in range(3, 6):
@@ -154,7 +152,7 @@ class TestLLDPMIB(TestCase):
             )
             response = get_pdu.make_response(self.lut)
             value0 = response.values[0]
-            self.assertEqual(str(value0.name), str(ObjectIdentifier(20, 0, 1, 0, 
+            self.assertEqual(str(value0.name), str(ObjectIdentifier(20, 0, 1, 0,
                                                    (1, 0, 8802, 1, 1, 2, 1, 4, 2, 1, entry, 0, 1, 1, 2, 16, 38, 3, 16, 226, 2, 144, 80, 22, 0, 0, 0, 0, 0, 0, 0, 0))))
             if entry == 3:
                 self.assertEqual(value0.type_, ValueType.INTEGER)
@@ -199,7 +197,7 @@ class TestLLDPMIB(TestCase):
         )
         response = get_pdu.make_response(self.lut)
         value0 = response.values[0]
-        self.assertEqual(str(value0.name), str(ObjectIdentifier(20, 0, 0, 0, (1, 0, 8802, 1, 1, 2, 1, 4, 2, 1, 3, 18543,  
+        self.assertEqual(str(value0.name), str(ObjectIdentifier(20, 0, 0, 0, (1, 0, 8802, 1, 1, 2, 1, 4, 2, 1, 3, 18543,
                                                13, 1, 2, 16, 254, 128, 38, 138, 0, 0, 0, 0, 0, 0, 7, 255, 254, 63, 131, 76))))
         self.assertEqual(value0.type_, ValueType.INTEGER)
         self.assertEqual(value0.data, 2)
