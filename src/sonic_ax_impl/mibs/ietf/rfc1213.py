@@ -22,6 +22,8 @@ from ax_interface.pdu import PDUHeader
 from ax_interface.pdu_implementations import NotifyPDU
 from ax_interface import constants
 
+import psutil
+
 @unique
 class DbTables(int, Enum):
     """
@@ -411,6 +413,8 @@ class InterfacesUpdater(MIBUpdater):
 
         self.namespace_db_map = Namespace.get_namespace_db_map(self.db_conn)
 
+        self.net_if_stats = {}
+
     def reinit_connection(self):
         Namespace.connect_namespace_dbs(self.db_conn)
 
@@ -430,6 +434,7 @@ class InterfacesUpdater(MIBUpdater):
         self.mgmt_oid_name_map, \
         self.mgmt_alias_map = mibs.init_mgmt_interface_tables(self.db_conn[0])
 
+        # Only VLAN interfaces with assigned IP addresses (L3 interfaces) will be retrieved.
         self.vlan_name_map, \
         self.vlan_oid_sai_map, \
         self.vlan_oid_name_map = Namespace.get_sync_d_from_all_namespace(mibs.init_sync_d_vlan_tables, self.db_conn)
@@ -452,6 +457,9 @@ class InterfacesUpdater(MIBUpdater):
         self.update_rif_counters()
 
         self.aggregate_counters()
+
+        # This is used by the _get_status function to obtain the oper_status of VLAN interfaces.
+        self.net_if_stats = psutil.net_if_stats()
 
         self.if_range = sorted(list(self.oid_name_map.keys()) +
                                list(self.oid_lag_name_map.keys()) +
@@ -718,6 +726,14 @@ class InterfacesUpdater(MIBUpdater):
         # Note: If interface never become up its state won't be reflected in DB entry
         # If state key is not in DB entry assume interface is down
         state = entry.get(key, "down")
+
+        # Note: The VLAN_TABLE in the appldb does not include an oper_status field.
+        # Hence, psutil is used to retrieve interface status from the kernel.
+        if key == "oper_status" and self.get_oid(sub_id) in self.vlan_oid_name_map:
+            vlan_name = self.vlan_oid_name_map[self.get_oid(sub_id)]
+            if vlan_name in self.net_if_stats:
+                interface_stats = self.net_if_stats[vlan_name]
+                state = "up" if interface_stats.isup else "down"
 
         return status_map.get(state, status_map["down"])
 
