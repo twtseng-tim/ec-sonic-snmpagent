@@ -46,7 +46,7 @@ class TestGetNextPDU(TestCase):
         value0 = response.values[0]
         self.assertEqual(value0.type_, ValueType.INTEGER)
         self.assertEqual(str(value0.name), str(ObjectIdentifier(11, 0, 1, 0, (1, 3, 6, 1, 2, 1, 2, 2, 1, 1, 1))))
-        self.assertEqual(value0.data, 0)
+        self.assertEqual(value0.data, 1)
 
     def test_getnextpdu_firstifindex(self):
         # oid.include = 1
@@ -65,7 +65,7 @@ class TestGetNextPDU(TestCase):
         value0 = response.values[0]
         self.assertEqual(value0.type_, ValueType.INTEGER)
         self.assertEqual(str(value0.name), str(ObjectIdentifier(11, 0, 1, 0, (1, 3, 6, 1, 2, 1, 2, 2, 1, 1, 1))))
-        self.assertEqual(value0.data, 0)
+        self.assertEqual(value0.data, 1)
 
     def test_getnextpdu_secondifindex(self):
         oid = ObjectIdentifier(11, 0, 0, 0, (1, 3, 6, 1, 2, 1, 2, 2, 1, 1, 1))
@@ -83,7 +83,7 @@ class TestGetNextPDU(TestCase):
         value0 = response.values[0]
         self.assertEqual(value0.type_, ValueType.INTEGER)
         self.assertEqual(str(value0.name), str(ObjectIdentifier(11, 0, 1, 0, (1, 3, 6, 1, 2, 1, 2, 2, 1, 1, 5))))
-        self.assertEqual(value0.data, 4)
+        self.assertEqual(value0.data, 5)
 
     def test_regisiter_response(self):
         mib_2_response = b'\x01\x12\x10\x00\x00\x00\x001\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00,\x01d`\xab\x00\x00\x00\x00\x00\x05\x00\x00\x07\x04\x00\x00\x00\x00\x00\x01\x00\x00\x17\x8b\x00\x00\x00\x03\x00\x00\x00\n\x00\x00\x00\x01\x00\x00\x00\x02\x00\x00\x00\t\x01\x12\x10\x00\x00\x00\x001\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x18\x01d`\xab\x00\x00\x00\x00\x00\x05\x00\x00\x02\x02\x00\x00\x00\x00\x00\x01\x00\x00\x00\x02'
@@ -252,7 +252,7 @@ class TestGetNextPDU(TestCase):
         value0 = response.values[0]
         self.assertEqual(value0.type_, ValueType.INTEGER)
         self.assertEqual(str(value0.name), str(ObjectIdentifier(11, 0, 1, 0, (1, 3, 6, 1, 2, 1, 2, 2, 1, 1, 10001))))
-        self.assertEqual(value0.data, 10000)
+        self.assertEqual(value0.data, 10001)
 
     def test_mgmt_iface_description(self):
         """
@@ -383,7 +383,7 @@ class TestGetNextPDU(TestCase):
         value0 = response.values[0]
         self.assertEqual(value0.type_, ValueType.INTEGER)
         self.assertEqual(str(value0.name), str(ObjectIdentifier(11, 0, 1, 0, (1, 3, 6, 1, 2, 1, 2, 2, 1, 1, 3000))))
-        self.assertEqual(value0.data, 2999)
+        self.assertEqual(value0.data, 3000)
 
     def test_vlan_iface_description(self):
         """
@@ -865,7 +865,7 @@ class TestGetNextPDU_2863(TestCase):
            updater.update_data()
            updater.reinit_data()
            updater.update_data()
-           
+
         # Also load the data for RFC1213 which we will need to check consistency
         importlib.reload(rfc1213)
         cls.lut_1213 = MIBTable(rfc1213.InterfacesMIB)
@@ -955,9 +955,9 @@ class TestGetNextPDU_2863(TestCase):
     def test_vlan_iface_1213_2863_consistent(self):
         """
         Test that the interface paths in RFC1213 and RFC2863 have the same leaf values.
-        """       
-        
-        # Build prefixes for vlan interface descriptions in RFC1213 and RFC2863 tables 
+        """
+
+        # Build prefixes for vlan interface descriptions in RFC1213 and RFC2863 tables
         pfx_1213 = [1, 3, 6, 1, 2, 1, 2, 2, 1, 2]
         pfx_2863 = [1, 3, 6, 1, 2, 1, 31, 1, 1, 1, 18]
 
@@ -968,10 +968,10 @@ class TestGetNextPDU_2863(TestCase):
         raw_oid_2863.append(1)
         incl = 1
         done = False
-        
+
         # Compare actual OIDs found for the two RFCs with the relevant prefix
         while not done:
-            
+
             # Get next OID for each table
             oid_1213 = ObjectIdentifier(11, 0, incl, 0, tuple(raw_oid_1213))
             get_pdu_1213 = GetNextPDU(
@@ -983,7 +983,7 @@ class TestGetNextPDU_2863(TestCase):
                 header=PDUHeader(1, PduTypes.GET, 16, 0, 42, 0, 0, 0),
                 oids=[oid_2863]
             )
-            
+
             # Decode the OIDs found
             encoded_1213 = get_pdu_1213.encode()
             response_1213 = get_pdu_1213.make_response(self.lut_1213)
@@ -991,13 +991,13 @@ class TestGetNextPDU_2863(TestCase):
             response_2863 = get_pdu_2863.make_response(self.lut)
             value0_1213 = response_1213.values[0]
             value0_2863 = response_2863.values[0]
-            
+
             # Convert returned OIDs to lists, and extract prefixes by removing last element
             cur_pfx_1213 = list(value0_1213.name.subids)
             cur_pfx_2863 = list(value0_2863.name.subids)
             cur_pfx_1213.pop()
             cur_pfx_2863.pop()
-            
+
             # Check if the returned OID have the same prefix we started with
             # It may be abbreviated so only check the end
             match_1213 = (cur_pfx_1213 == pfx_1213[-len(cur_pfx_1213):]) and (value0_1213.type_ == ValueType.OCTET_STRING)
@@ -1005,7 +1005,7 @@ class TestGetNextPDU_2863(TestCase):
 
             # We expect both tables to have equal numbers of OIDs
             self.assertEqual(match_1213, match_2863)
-                        
+
             # Check contents if both OIDs still match the original prefix
             if match_1213 and match_2863:
                 last_1213 = value0_1213.name.subids[-1]
@@ -1019,7 +1019,7 @@ class TestGetNextPDU_2863(TestCase):
                 raw_oid_2863 = pfx_2863.copy()
                 raw_oid_2863.append(last_2863)
                 incl = 0
-            
+
             # Otherwise we exhausted the values with this OID prefix
             else:
                 done = True
