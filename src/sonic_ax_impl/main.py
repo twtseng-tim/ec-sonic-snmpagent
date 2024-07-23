@@ -46,6 +46,8 @@ class SonicMIB(
     If SONiC was to create custom MIBEntries, they may be specified here.
     """
 
+# Register Trap handlers
+trap_handlers = [rfc1213.linkUpDownTrap]
 
 def shutdown(signame, agent):
     # FIXME: If the Agent dies, the background tasks will zombie.
@@ -61,7 +63,7 @@ def main(update_frequency=None):
         Namespace.init_sonic_db_config()
 
         # initialize handler and set update frequency (or use the default)
-        agent = ax_interface.Agent(SonicMIB, update_frequency or DEFAULT_UPDATE_FREQUENCY, event_loop)
+        agent = ax_interface.Agent(SonicMIB, update_frequency or DEFAULT_UPDATE_FREQUENCY, event_loop, trap_handlers)
 
         # add "shutdown" signal handlers
         # https://docs.python.org/3.5/library/asyncio-eventloop.html#set-signal-handlers-for-sigint-and-sigterm

@@ -511,6 +511,7 @@ class LLDPRemManAddrUpdater(MIBUpdater):
         self.oid_name_map = {}
         self.mgmt_oid_name_map = {}
         self.pubsub = [None] * len(self.db_conn)
+        self.mgmt_ips = []
 
     def update_rem_if_mgmt(self, if_oid, if_name):
         lldp_kvs = Namespace.dbs_get_all(self.db_conn, mibs.APPL_DB, mibs.lldp_entry_table(if_name))
@@ -558,13 +559,13 @@ class LLDPRemManAddrUpdater(MIBUpdater):
         for interface in event_cache:
             data = event_cache[interface][0]
             if_index = event_cache[interface][1]
-            
+
             if "set" in data:
                 self.update_rem_if_mgmt(if_index, interface)
             elif "del" in data:
                 # if del is the latest notification, then delete it from the local cache
                 self.if_range = [sub_oid for sub_oid in self.if_range if sub_oid[0] != if_index]
-                
+
     def update_data(self):
         for i in range(len(self.db_conn)):
             if not self.pubsub[i]:
