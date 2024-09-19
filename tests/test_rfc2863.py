@@ -29,6 +29,9 @@ class TestInterfaceMIBUpdater(TestCase):
                     {},
                     {121: 'Ethernet120'}]
 
+        if per_namespace_func == sonic_ax_impl.mibs.init_sync_d_loopback_tables:
+            return [{}]
+
         return [{},{},{}]
 
     def mock_lag_entry_table(lag_name):

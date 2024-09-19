@@ -233,15 +233,16 @@ class IfIndexUpdater(MIBUpdater):
         interfaces = Namespace.dbs_keys(self.db_conn, mibs.APPL_DB, "INTF_TABLE:*")
         loopback_intf_list = set()
         for interface in interfaces:
-            ethTablePrefix = re.search(r"INTF_TABLE\:[A-Za-z]+[0-9]+\:[0-9.\:A-Fa-f]+", interface)
+            ethTablePrefix = re.search(r"INTF_TABLE\:([A-Za-z]+[0-9]+)\:?([0-9.\:A-Fa-f]+)?", interface) # e.g. INTF_TABLE:(Loopback1):(4.4.4.4)/31
             if ethTablePrefix is None:
                 continue
             else:
-                dev = ethTablePrefix.group().split(':')[1]
-                ip = ':'.join(ethTablePrefix.group().split(':')[2:])
+                dev = ethTablePrefix.group(1)
+                ip  = ethTablePrefix.group(2) if ethTablePrefix.group(2) else None
                 if dev.startswith('Loopback'):
-                    loopback_intf_list.add(dev)
-                    # continue
+                    loopback_intf_list.add(dev) # link local address of loopback will be obtained in next section.
+                if ip == None:
+                    continue # if no IP in INTF_TABLE key, skip
             self._update_if_index_info(dev, ip)
 
         # For the Loopback interface, since its link-local address is not recorded in APPLDB, its IP needs to be retrieved separately and updated.
@@ -303,20 +304,36 @@ class NetmaskUpdater(MIBUpdater):
         netip = netip.split('/')[0]
         netiptuple = ip2byte_tuple(netip)
 
-        # Create map beteen subid and OID
-        oid_tuple = (1, 3, 6, 1, 2, 1, 4, 32, 1, 5)
-        self.netmask_map[subid] = oid_tuple + (if_index,) + (ip_type, ip_len,)  + netiptuple + (netmask,)
-        self.netmask_list.append(subid)
+        if subid not in self.netmask_list:
+            # Create map beteen subid and OID
+            oid_tuple = (1, 3, 6, 1, 2, 1, 4, 32, 1, 5)
+            self.netmask_map[subid] = oid_tuple + (if_index,) + (ip_type, ip_len,)  + netiptuple + (netmask,)
+            self.netmask_list.append(subid)
+
+    def _get_net_if_addrs(self):
+        self.net_if_addrs = psutil.net_if_addrs()
 
     def _getIfaceAddress(self, iface):
-        return [ (x.address, x.netmask) if x.family == socket.AddressFamily.AF_INET else (x.address.replace('%{}'.format(iface), ''), x.netmask) for x in psutil.net_if_addrs().get(iface, []) if x.address and (x.family == socket.AddressFamily.AF_INET or x.family == socket.AddressFamily.AF_INET6)]
+        return [ (x.address, x.netmask) if x.family == socket.AddressFamily.AF_INET else (x.address.replace('%{}'.format(iface), ''), x.netmask) for x in self.net_if_addrs.get(iface, []) if x.address and (x.family == socket.AddressFamily.AF_INET or x.family == socket.AddressFamily.AF_INET6)]
 
     def _getIfaceBrdAddress(self, iface):
-        return [ (x.broadcast, x.netmask) if x.family == socket.AddressFamily.AF_INET else (x.broadcast.replace('{}'.format(iface), ''), x.netmask) for x in psutil.net_if_addrs().get(iface, []) if x.broadcast and (x.family == socket.AddressFamily.AF_INET or x.family == socket.AddressFamily.AF_INET6)]
+        return [ (x.broadcast, x.netmask) if x.family == socket.AddressFamily.AF_INET else (x.broadcast.replace('{}'.format(iface), ''), x.netmask) for x in self.net_if_addrs.get(iface, []) if x.broadcast and (x.family == socket.AddressFamily.AF_INET or x.family == socket.AddressFamily.AF_INET6)]
+
+    def _get_ip_mask(self, ip, mask):
+        ipaddr = ipaddress.ip_address(ip)
+        if isinstance(ipaddr, ipaddress.IPv4Address):
+            ip_mask = str(ipaddress.ip_interface('{}/{}'.format(ip, mask)))
+        else:
+            masktuple = ip2byte_tuple(mask)
+            prefix_length = sum(bin(x).count("1") for x in masktuple)
+            ip_mask = str(ipaddress.ip_interface('{}/{}'.format(ip, prefix_length)))
+        return ip_mask
 
     def update_data(self):
         self.netmask_map = {}
         self.netmask_list = []
+        self.net_if_addrs = []
+        self._get_net_if_addrs()
 
         interfaces = Namespace.dbs_keys(self.db_conn, mibs.APPL_DB, "INTF_TABLE:*")
         for interface in interfaces:
@@ -331,27 +348,28 @@ class NetmaskUpdater(MIBUpdater):
 
         for ip, mask in self._getIfaceAddress('eth0'):
             ipaddr = ipaddress.ip_address(ip)
-
-            if isinstance(ipaddr, ipaddress.IPv4Address):
-                ip_mask = str(ipaddress.ip_interface('{}/{}'.format(ip, mask)))
-            else:
-                masktuple = ip2byte_tuple(mask)
-                prefix_length = sum(bin(x).count("1") for x in masktuple)
-                ip_mask = str(ipaddress.ip_interface('{}/{}'.format(ip, prefix_length)))
-
+            ip_mask = self._get_ip_mask(ip, mask)
             self._update_netmask_info("eth0", ip_mask)
 
         for ip, mask in self._getIfaceAddress('docker0') + self._getIfaceBrdAddress('docker0'):
             ipaddr = ipaddress.ip_address(ip)
-
-            if isinstance(ipaddr, ipaddress.IPv4Address):
-                ip_mask = str(ipaddress.ip_interface('{}/{}'.format(ip, mask)))
-            else:
-                masktuple = ip2byte_tuple(mask)
-                prefix_length = sum(bin(x).count("1") for x in masktuple)
-                ip_mask = str(ipaddress.ip_interface('{}/{}'.format(ip, prefix_length)))
-
+            ip_mask = self._get_ip_mask(ip, mask)
             self._update_netmask_info("docker0", ip_mask)
+
+        # for link local address. If the interface name cannot be converted to an index(mibs.get_index_from_str()), it will be skipped.
+        for iface, snicaddr_list in self.net_if_addrs.items():
+            for snicaddr in snicaddr_list:
+                if snicaddr.family == socket.AddressFamily.AF_INET:
+                    ip = snicaddr.address
+                elif snicaddr.family == socket.AddressFamily.AF_INET6:
+                    ip = snicaddr.address.replace('%{}'.format(iface), '')
+                else:
+                    continue
+                mask = snicaddr.netmask
+                ipaddr = ipaddress.ip_address(ip)
+                if ipaddr.is_link_local:
+                    ip_mask = self._get_ip_mask(ip, mask)
+                    self._update_netmask_info(iface, ip_mask)
 
         self.netmask_list.sort()
 
@@ -401,6 +419,7 @@ class InterfacesUpdater(MIBUpdater):
         self.vlan_name_map = {}
         self.rif_port_map = {}
         self.port_rif_map = {}
+        self.loopback_oid_name_map = {}
 
         # cache of interface counters
         self.if_counters = {}
@@ -447,6 +466,8 @@ class InterfacesUpdater(MIBUpdater):
         self.oid_lag_name_map, \
         self.lag_sai_map, self.sai_lag_map = Namespace.get_sync_d_from_all_namespace(mibs.init_sync_d_lag_tables, self.db_conn)
 
+        self.loopback_oid_name_map, = Namespace.get_sync_d_from_all_namespace(mibs.init_sync_d_loopback_tables, self.db_conn)
+
     def update_data(self):
         """
         Update redis (caches config)
@@ -464,7 +485,8 @@ class InterfacesUpdater(MIBUpdater):
         self.if_range = sorted(list(self.oid_name_map.keys()) +
                                list(self.oid_lag_name_map.keys()) +
                                list(self.mgmt_oid_name_map.keys()) +
-                               list(self.vlan_oid_name_map.keys()))
+                               list(self.vlan_oid_name_map.keys()) +
+                               list(self.loopback_oid_name_map.keys()))
         self.if_range = [(i,) for i in self.if_range]
 
     def update_if_counters(self):

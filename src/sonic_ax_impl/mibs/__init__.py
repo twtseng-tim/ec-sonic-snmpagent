@@ -186,6 +186,13 @@ def mgmt_if_entry_table(if_name):
 
     return 'MGMT_PORT|' + if_name
 
+def loopback_if_entry_table(if_name):
+    """
+    :param if_name: given interface to cast
+    :return: MGMT_PORT_TABLE key
+    """
+
+    return 'LOOPBACK_INTERFACE|' + if_name
 
 def mgmt_if_entry_table_state_db(if_name):
     """
@@ -475,6 +482,23 @@ def init_sync_d_queue_tables(db_conn):
 
     return port_queues_map, queue_stat_map, port_queue_list_map
 
+def init_sync_d_loopback_tables(db_conn):
+    # Initializes interface maps for loopback
+    # :return: loopback_oid_name_map
+    oid_name_map = {}
+    db_conn.connect(CONFIG_DB)
+    loopback_intfs_keys = db_conn.keys(CONFIG_DB, loopback_if_entry_table('*'))
+
+    if not loopback_intfs_keys:
+        logger.debug('No loopback interface found in {}'.format(loopback_if_entry_table('')))
+        return {},
+
+    loopback_intfs = [key.split("|")[1] for key in loopback_intfs_keys]
+    oid_name_map = {get_index_from_str(loopback_name): loopback_name for loopback_name in loopback_intfs}
+    logger.debug('Managment port map:\n' + pprint.pformat(oid_name_map, indent=2))
+
+    return oid_name_map,
+
 def get_device_metadata(db_conn):
     """
     :param db_conn: Sonic DB connector
@@ -575,7 +599,7 @@ class Namespace:
         db_conn = []
         Namespace.init_sonic_db_config()
         host_namespace_idx = 0
-        for idx, namespace in enumerate(SonicDBConfig.get_ns_list()): 
+        for idx, namespace in enumerate(SonicDBConfig.get_ns_list()):
             if namespace == multi_asic.DEFAULT_NAMESPACE:
                 host_namespace_idx = idx
             db = SonicV2Connector(use_unix_socket_path=True, namespace=namespace)

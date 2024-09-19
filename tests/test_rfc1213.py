@@ -94,9 +94,12 @@ class TestNextHopUpdaterRedisException(TestCase):
 
             if per_namespace_func == sonic_ax_impl.mibs.init_sync_d_rif_tables:
                 return [{}, {}]
-            
+
+            if per_namespace_func == sonic_ax_impl.mibs.init_sync_d_loopback_tables:
+                return [{}]
+
             return [{}, {}, {}, {}, {}]
-        
+
         updater = InterfacesUpdater()
         with mock.patch('sonic_ax_impl.mibs.Namespace.get_sync_d_from_all_namespace', mock_get_sync_d_from_all_namespace):
             with mock.patch('sonic_ax_impl.mibs.Namespace.connect_namespace_dbs') as connect_namespace_dbs:
