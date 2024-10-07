@@ -93,6 +93,7 @@ class InterfaceMIBUpdater(MIBUpdater):
         self.mgmt_alias_map = {}
         self.vlan_oid_name_map = {}
         self.vlan_name_map = {}
+        self.loopback_oid_name_map = {}
         self.if_counters = {}
         self.if_range = []
         self.if_name_map = {}
@@ -130,10 +131,13 @@ class InterfaceMIBUpdater(MIBUpdater):
         self.vlan_oid_sai_map, \
         self.vlan_oid_name_map = Namespace.get_sync_d_from_all_namespace(mibs.init_sync_d_vlan_tables, self.db_conn)
 
+        self.loopback_oid_name_map, = Namespace.get_sync_d_from_all_namespace(mibs.init_sync_d_loopback_tables, self.db_conn)
+
         self.if_range = sorted(list(self.oid_name_map.keys()) +
                                list(self.oid_lag_name_map.keys()) +
                                list(self.mgmt_oid_name_map.keys()) +
-                               list(self.vlan_oid_name_map.keys()))
+                               list(self.vlan_oid_name_map.keys()) +
+                               list(self.loopback_oid_name_map.keys()))
         self.if_range = [(i,) for i in self.if_range]
 
     def update_data(self):
@@ -158,7 +162,8 @@ class InterfaceMIBUpdater(MIBUpdater):
         self.if_range = sorted(list(self.oid_name_map.keys()) +
                                list(self.oid_lag_name_map.keys()) +
                                list(self.mgmt_oid_name_map.keys()) +
-                               list(self.vlan_oid_name_map.keys()))
+                               list(self.vlan_oid_name_map.keys()) +
+                               list(self.loopback_oid_name_map.keys()))
         self.if_range = [(i,) for i in self.if_range]
 
     def get_next(self, sub_id):
@@ -289,6 +294,8 @@ class InterfaceMIBUpdater(MIBUpdater):
             if_table = mibs.vlan_entry_table(self.vlan_oid_name_map[oid])
         elif oid in self.oid_name_map:
             if_table = mibs.if_entry_table(self.oid_name_map[oid])
+        elif oid in self.loopback_oid_name_map:
+            if_table = mibs.intf_table(self.loopback_oid_name_map[oid])
         else:
             return None
 

@@ -555,6 +555,8 @@ class InterfacesUpdater(MIBUpdater):
             return self.mgmt_alias_map[self.mgmt_oid_name_map[oid]]
         elif oid in self.vlan_oid_name_map:
             return self.vlan_oid_name_map[oid]
+        elif oid in self.loopback_oid_name_map:
+            return self.loopback_oid_name_map[oid]
 
         return self.oid_name_map[oid]
 

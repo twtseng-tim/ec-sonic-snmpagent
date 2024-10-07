@@ -194,6 +194,14 @@ def loopback_if_entry_table(if_name):
 
     return 'LOOPBACK_INTERFACE|' + if_name
 
+def intf_table(if_name):
+    """
+    :param if_name: given interface to cast
+    :return: INTF_TABLE key
+    """
+
+    return 'INTF_TABLE:' + if_name
+
 def mgmt_if_entry_table_state_db(if_name):
     """
     :param if_name: given interface to cast
