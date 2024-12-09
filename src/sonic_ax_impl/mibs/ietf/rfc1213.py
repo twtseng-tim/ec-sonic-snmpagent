@@ -696,6 +696,8 @@ class InterfacesUpdater(MIBUpdater):
             if_table = mibs.vlan_entry_table(self.vlan_oid_name_map[oid])
         elif oid in self.oid_name_map:
             if_table = mibs.if_entry_table(self.oid_name_map[oid])
+        elif oid in self.loopback_oid_name_map:
+            if_table = mibs.intf_table(self.loopback_oid_name_map[oid])
         else:
             return None
 
