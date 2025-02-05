@@ -82,7 +82,7 @@ class RouteUpdater(MIBUpdater):
                 ## Ignore non front panel interfaces
                 ## TODO: non front panel interfaces should not be in APPL_DB at very beginning
                 ## This is to workaround the bug in current sonic-swss implementation
-                if ifn == "eth0" or ifn == "lo" or ifn == "docker0":
+                if ifn == "eth0" or ifn == "lo" or ifn == "docker0" or ifn.startswith("eth0."):
                     continue
 
                 # Ignore internal asic routes
